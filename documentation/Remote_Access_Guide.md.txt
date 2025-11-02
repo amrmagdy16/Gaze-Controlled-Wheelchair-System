@@ -1,0 +1,139 @@
+Detailed Guide: Setting Up PuTTY (SSH) & VNC for Raspberry Pi Remote Access
+This guide provides a step-by-step walkthrough to remotely control your Raspberry Pi from a Windows/Linux/Mac laptop using:
+
+PuTTY (for SSH terminal access)
+
+VNC Viewer (for remote desktop GUI access)
+
+🔹 Prerequisites
+Before starting, ensure:
+
+Raspberry Pi is set up with Raspberry Pi OS (Raspbian).
+
+It is connected to the same network as your laptop.
+
+You know the IP address of the Pi (or how to find it).
+
+📌 Step 1: Enable SSH on Raspberry Pi
+SSH (Secure Shell) allows remote terminal access.
+
+Method 1: Using raspi-config (Recommended)
+Open Terminal on the Pi (or connect a monitor/keyboard).
+
+Run:
+
+bash
+sudo raspi-config
+Navigate to:
+Interfacing Options → SSH → Yes (Enable).
+
+Exit raspi-config.
+
+Method 2: Manually Enable SSH
+If you don’t have a monitor, create an empty ssh file on the boot partition of the SD card:
+
+Insert the SD card into your laptop.
+
+Create a blank file named ssh (no extension) in the boot partition.
+
+Reinsert the SD card into the Pi and boot.
+
+📌 Step 2: Find Raspberry Pi’s IP Address
+You need the Pi’s local IP to connect via SSH/VNC.
+
+Method 1: Check on Raspberry Pi
+Run in terminal:
+
+bash
+hostname -I
+Example output:
+192.168.1.100 (Note this IP)
+
+Method 2: Find via Router
+Log in to your router’s admin page (usually 192.168.1.1 or 192.168.0.1).
+
+Look for connected devices (often under DHCP Clients or Attached Devices).
+
+Find the Raspberry Pi (hostname might be raspberrypi).
+
+📌 Step 3: Install & Configure PuTTY (SSH) on Laptop
+PuTTY is an SSH client for Windows (Linux/Mac can use built-in SSH).
+
+For Windows:
+Download PuTTY:
+
+https://www.putty.org
+
+Install and open.
+
+Configure PuTTY:
+
+Host Name (or IP address): 192.168.1.100 (Pi’s IP).
+
+Port: 22 (default SSH port).
+
+Connection Type: SSH.
+
+Click Open.
+
+First Connection Warning:
+
+Click Yes to accept the security alert.
+
+Login:
+
+Default username: pi
+
+Default password: raspberry (change if you’ve set a new one).
+
+Now you have terminal access to your Pi!
+
+For Linux/Mac (Terminal SSH)
+Open Terminal and run:
+
+bash
+ssh pi@192.168.1.100
+(Replace IP with your Pi’s address.)
+
+📌 Step 4: Enable VNC on Raspberry Pi
+VNC (Virtual Network Computing) allows remote desktop access.
+
+Method 1: Using raspi-config
+On the Pi, run:
+
+bash
+sudo raspi-config
+Navigate to:
+Interfacing Options → VNC → Yes (Enable).
+
+Exit raspi-config.
+
+Method 2: Install VNC Server Manually
+Run:
+
+bash
+sudo apt update && sudo apt install realvnc-vnc-server -y
+Start VNC Server
+Run:
+
+bash
+vncserver
+(Note the display number, e.g., :1.)
+
+📌 Step 5: Install VNC Viewer on Laptop
+Download VNC Viewer:
+
+https://www.realvnc.com/en/connect/download/viewer/
+
+Install and open.
+
+Connect to Raspberry Pi:
+
+Enter the Pi’s IP address + display number (e.g., 192.168.1.100:1).
+
+Click Connect.
+
+Enter username (pi) and password (raspberry by default).
+
+Now you have full remote desktop access!
+

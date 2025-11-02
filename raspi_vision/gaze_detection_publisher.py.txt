@@ -1,0 +1,96 @@
+import cv2
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+import numpy as np
+import paho.mqtt.client as mqtt
+from picamera2 import Picamera2
+import time
+
+# MQTT Configuration
+BROKER_IP = "192.168.142.37"  # Raspberry Pi's IP (use 'hostname -I')
+TOPIC = "gaze/direction"
+MQTT_USERNAME = "Amr"
+MQTT_PASSWORD = "Amrmagdy33@"
+
+# Initialize MQTT Client
+client = mqtt.Client()
+client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+client.connect(BROKER_IP, 1883, 60)
+client.loop_start()
+
+# MediaPipe Setup
+model_path = "face_landmarker.task"
+base_options = python.BaseOptions(model_asset_path=model_path)
+options = vision.FaceLandmarkerOptions(
+    base_options=base_options,
+    output_face_blendshapes=True,
+    num_faces=1,
+)
+detector = vision.FaceLandmarker.create_from_options(options)
+
+# Eye Landmark Indices
+LEFT_EYE_INDICES = [33, 133, 160, 144, 158, 153, 157, 154, 468]
+RIGHT_EYE_INDICES = [362, 263, 387, 373, 385, 380, 384, 381, 473]
+
+def get_eye_direction(landmarks, eye_indices):
+    eye_points = np.array([(landmarks[i].x, landmarks[i].y) for i in eye_indices[:8]])
+    horiz_dist = np.linalg.norm(eye_points[0] - eye_points[3])
+    vert_dist1 = np.linalg.norm(eye_points[1] - eye_points[5])
+    vert_dist2 = np.linalg.norm(eye_points[2] - eye_points[4])
+    ear = (vert_dist1 + vert_dist2) / (2 * horiz_dist)
+    pupil = np.array([landmarks[eye_indices[8]].x, landmarks[eye_indices[8]].y])
+    eye_center = np.mean(eye_points[:6], axis=0)
+    relative_pos = pupil - eye_center
+    return ear, relative_pos
+
+def determine_gaze_direction(left_pos, right_pos, left_ear, right_ear):
+    if left_ear < 0.25 or right_ear < 0.25:
+        return "EYES_CLOSED"
+    avg_pos = (left_pos * left_ear + right_pos * right_ear) / (left_ear + right_ear)
+    threshold = 0.03 * (1 + (0.25 - min(left_ear, right_ear)))
+    if avg_pos[1] < -threshold: return "UP"
+    elif avg_pos[1] > threshold: return "DOWN"
+    elif avg_pos[0] < -threshold: return "LEFT"
+    elif avg_pos[0] > threshold: return "RIGHT"
+    else: return "CENTER"
+
+# Main Loop
+picam2 = Picamera2()
+picam2.start()
+current_gaze = "NO_FACE"  # Initialize with "NO_FACE"
+last_publish_time = 0
+
+try:
+    while True:
+        frame = picam2.capture_array()
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        detection_result = detector.detect(mp_image)
+        
+        if detection_result.face_landmarks:
+            landmarks = detection_result.face_landmarks[0]
+            left_ear, left_pos = get_eye_direction(landmarks, LEFT_EYE_INDICES)
+            right_ear, right_pos = get_eye_direction(landmarks, RIGHT_EYE_INDICES)
+            current_gaze = determine_gaze_direction(left_pos, right_pos, left_ear, right_ear)
+        else:
+            current_gaze = "NO_FACE"  # Explicitly set to "NO_FACE" when no face is detected
+        
+        # Display gaze direction on frame
+        cv2.putText(rgb_frame, f"Gaze: {current_gaze}", (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        
+        # Publish to MQTT every 0.5 seconds
+        if time.time() - last_publish_time >= 0.5:
+            client.publish(TOPIC, current_gaze)
+            print(f"Published: {current_gaze}")
+            last_publish_time = time.time()
+        
+        cv2.imshow("Eye Tracking", cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR))
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+finally:
+    picam2.stop()
+    client.disconnect()
+    cv2.destroyAllWindows()
